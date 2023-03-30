@@ -1,67 +1,79 @@
+import os
+import sys
+
 import bpy
 from math import *
 
+import numpy as np
+from matplotlib import pyplot as plt
+
+# this is optional and allows you to call the functions without specifying the package name
+from gear_2d import Gear
+
 def createMeshFromData(name, origin, verts, edges):
-	# Create mesh and object
-	me = bpy.data.meshes.new(name+'Mesh')
-	ob = bpy.data.objects.new(name, me)
-	ob.location = origin
-	ob.show_name = False
+    # Create mesh and object
+    mesh_gear = bpy.data.meshes.new(name+'Mesh')
+    object_gear = bpy.data.objects.new(name, mesh_gear)
+    object_gear.location = origin
+    object_gear.show_name = False
 
-	# Link object to scene and make active
-	bpy.context.collection.objects.link(ob)
-	ob.select_set(True)
+    gears_collection = bpy.data.collections.new('gears_collection')
+    bpy.context.scene.collection.children.link(gears_collection)
 
-	# Create mesh from given verts, faces.
-	me.from_pydata(verts, edges, [])
-	# Update mesh with new data
-	me.update()
-	return ob
+    # bpy.context.collection.objects.link(ob)
 
-def TurnPoint( pt, degrees, centerx, centery ):
-	fR = sqrt((pt[0] - centerx) * (pt[0] - centerx) + (pt[1] - centery) * (pt[1] - centery))
-	fAngle = atan2(pt[1] - centery, pt[0] - centerx)
-	fAngle = fAngle + degrees * pi / 180.0
+    gears_collection.objects.link(object_gear)
+    object_gear.select_set(True)
 
-	pt[0] = centerx + fR * cos(fAngle)
-	pt[1] = centery + fR * sin(fAngle)
 
-def CreateInvoluteGear( name, points, teeth, centerx, centery ):
-	pointlen = len(points)
-	edges = [[0, 0] for _ in range(pointlen * teeth) ]
-	verts = [[0, 0, 0] for _ in range(pointlen * teeth) ]
+    mesh_gear.from_pydata(verts, edges, [])
+    mesh_gear.update()
+    bpy.context.view_layer.objects.active = object_gear
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.normals_make_consistent(inside=False)
 
-	for t in range(teeth):
-		for i in range(pointlen):
-			verts[t * pointlen + i][0] = points[i][0]
-			verts[t * pointlen + i][1] = points[i][1]
-			verts[t * pointlen + i][2] = 0
-			TurnPoint( verts[t * pointlen + i], t * 360.0 / teeth, 0, 0)
-			edges[t * pointlen + i][0] = t * pointlen + i
-			edges[t * pointlen + i][1] = t * pointlen + i + 1
+    #bpy.ops.wm.tool_set_by_id(name="builtin.extrude_region")
+    bpy.ops.mesh.extrude_context_move(MESH_OT_extrude_context={"use_normal_flip":False, "use_dissolve_ortho_edges":False, "mirror":False}, TRANSFORM_OT_translate={"value":(0, 0, 10), "orient_axis_ortho":'X', "orient_type":'GLOBAL', "orient_matrix":((1, 0, 0), (0, 1, 0), (0, 0, 1)), "orient_matrix_type":'GLOBAL', "constraint_axis":(True, True, True), "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "cursor_transform":False, "texture_space":False, "remove_on_cancel":False, "view2d_edge_pan":False, "release_confirm":True, "use_accurate":False, "use_automerge_and_split":False})
+    # bpy.ops.mesh.loopcut_slide(MESH_OT_loopcut={"number_cuts":10, "smoothness":0, "falloff":'INVERSE_SQUARE', "object_index":0, "edge_index":4692, "mesh_select_mode_init":(True, False, False)}, TRANSFORM_OT_edge_slide={"value":0, "single_side":False, "use_even":False, "flipped":False, "use_clamp":True, "mirror":True, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "correct_uv":True, "release_confirm":True, "use_accurate":False})
+    # bpy.ops.view3d.snap_cursor_to_selected()
+    bpy.ops.mesh.primitive_circle_add(vertices=1620, radius=3, enter_editmode=False, align='WORLD',location=(-2.15173e-06, -5.18045e-08, 10), scale=(1, 1, 1))
+    bpy.ops.mesh.select_mode(type="VERT")
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
 
-	# connect last point with first
-	edges[pointlen * teeth - 1][1] = 0
+    obj = bpy.context.active_object
+    for i in obj.data.vertices[1620:]:
+        i.select=True
+    # obj.data.vertices[0].select = True
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.bridge_edge_loops()
 
-	createMeshFromData( name, [centerx, 0, 0], verts, edges )
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for i in obj.data.vertices[3240:]:
+        i.select = True
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.extrude_context_move(MESH_OT_extrude_context={"use_normal_flip":False, "use_dissolve_ortho_edges":False, "mirror":False}, TRANSFORM_OT_translate={"value":(-0, -0, -10), "orient_axis_ortho":'X', "orient_type":'GLOBAL', "orient_matrix":((1, 0, 0), (0, 1, 0), (0, 0, 1)), "orient_matrix_type":'GLOBAL', "constraint_axis":(True, True, True), "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "cursor_transform":False, "texture_space":False, "remove_on_cancel":False, "view2d_edge_pan":False, "release_confirm":True, "use_accurate":False, "use_automerge_and_split":False})
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for i in obj.data.vertices[:1620]:
+        i.select=True
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.bridge_edge_loops()
 
-points1 = [[8.136,-2.310],[8.152,-2.314],[8.202,-2.323],[8.285,-2.333],[8.403,-2.339],[8.554,-2.338]
-,[8.739,-2.325],[8.956,-2.296],[9.203,-2.246],[9.480,-2.173],[9.783,-2.071],[9.902,-1.400]
-,[9.651,-1.201],[9.417,-1.037],[9.201,-.906],[9.007,-.804],[8.838,-.729],[8.696,-.676]
-,[8.583,-.641],[8.502,-.622],[8.452,-.613],[8.435,-.611],[8.323,-.601],[8.214,-.570]
-,[8.113,-.520],[8.023,-.452],[7.947,-.368],[7.888,-.273],[7.847,-.167],[7.826,-.056]
-,[7.826,.056],[7.847,.167],[7.888,.273],[7.947,.368],[8.023,.452],[8.113,.520]
-,[8.214,.570],[8.323,.601]]
 
-points2 = [[-5.578,.819],[-5.594,.821],[-5.639,.822],[-5.716,.819],[-5.822,.807],[-5.957,.781]
-,[-6.119,.738],[-6.306,.673],[-6.516,.583],[-6.747,.463],[-6.993,.310],[-6.993,-.310]
-,[-6.747,-.463],[-6.516,-.583],[-6.306,-.673],[-6.119,-.738],[-5.957,-.781],[-5.822,-.807]
-,[-5.716,-.819],[-5.639,-.822],[-5.594,-.821],[-5.578,-.819],[-5.460,-.799],[-5.339,-.801]
-,[-5.221,-.825],[-5.110,-.870],[-5.008,-.935],[-4.921,-1.017],[-4.849,-1.115],[-4.797,-1.223]
-,[-4.766,-1.339],[-4.757,-1.460],[-4.770,-1.579],[-4.805,-1.695],[-4.860,-1.801],[-4.934,-1.896]
-,[-5.024,-1.976],[-5.128,-2.038]]
+    bpy.ops.export_scene.obj(filepath=r'C:\Users\Oleg\Dropbox\Gears\gears\myfile.obj')
 
-CreateInvoluteGear( "m1_z18_x0", points1, 18, 0, 0 )
-CreateInvoluteGear( "m1_z12_x0", points2, 12, 14.9867, 0 )
+    return object_gear
 
-# OVERLAP DETECTED
+
+if __name__ == '__main__':
+
+    a = 3
+    b = 3
+    alfa = 20
+    m = 1
+    n_teeth = 18
+    shift = 0
+    gear = Gear(a, b, alfa, m, n_teeth, shift)
+    createMeshFromData("gear18",[0,0,0],np.c_[gear.gear,np.zeros(len(gear.gear))],gear.edges)
+
