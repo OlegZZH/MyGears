@@ -4,7 +4,7 @@ import numpy as np
 from transformation import rot_z
 
 
-class Gear:
+class Gear2d:
     def __init__(self, a, b, alfa, m, n_teeth, shift):
         """
         :param shift: зсув
@@ -135,5 +135,5 @@ if __name__ == '__main__':
     m = 1
     n_teeth = 18
     shift = 0
-    gear = Gear(a, b, alfa, m, n_teeth, shift)
+    gear = Gear_2d(a, b, alfa, m, n_teeth, shift)
     gear.show_gear()
