@@ -1,6 +1,8 @@
-import numpy as np
+import os
 
 import bpy
+import numpy as np
+
 # this is optional and allows you to call the functions without specifying the package name
 from gear_2d import Gear2d
 
@@ -18,10 +20,11 @@ class Gear3d(Gear2d):
         self.name = name
         self.path = path
         self.location = location
+        self.create_mesh()
 
-    def createMeshFromData(self):
+    def create_mesh(self):
         bpy.ops.object.delete()
-
+        print(bpy)
         mesh_gear = bpy.data.meshes.new(self.name + 'Mesh')
         object_gear = bpy.data.objects.new(self.name, mesh_gear)
         object_gear.location = self.location
@@ -34,8 +37,8 @@ class Gear3d(Gear2d):
 
         gears_collection.objects.link(object_gear)
         object_gear.select_set(True)
-        print(self.edges)
-        mesh_gear.from_pydata(np.c_[gear.gear, np.zeros(len(gear.gear))], self.edges, [])
+        # print(self.edges)
+        mesh_gear.from_pydata(np.c_[self.gear, np.zeros(len(self.gear))], self.edges, [])
         mesh_gear.update()
         bpy.context.view_layer.objects.active = object_gear
         bpy.ops.object.mode_set(mode='EDIT')
@@ -60,7 +63,9 @@ class Gear3d(Gear2d):
         # bpy.ops.mesh.loopcut_slide(MESH_OT_loopcut={"number_cuts":10, "smoothness":0, "falloff":'INVERSE_SQUARE', "object_index":0, "edge_index":4692, "mesh_select_mode_init":(True, False, False)}, TRANSFORM_OT_edge_slide={"value":0, "single_side":False, "use_even":False, "flipped":False, "use_clamp":True, "mirror":True, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "correct_uv":True, "release_confirm":True, "use_accurate":False})
         # bpy.ops.view3d.snap_cursor_to_selected()
         bpy.ops.mesh.primitive_circle_add(vertices=1620, radius=3, enter_editmode=False, align='WORLD',
-                                          location=(-2.15173e-06, -5.18045e-08, 10), scale=(1, 1, 1))
+                                          location=(
+                                          self.location[0], self.location[1], self.location[2] + self.thickness),
+                                          scale=(1, 1, 1))
         bpy.ops.mesh.select_mode(type="VERT")
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -99,13 +104,11 @@ class Gear3d(Gear2d):
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.bridge_edge_loops()
 
-        bpy.ops.export_scene.obj(filepath=r'C:\Users\Oleg\Dropbox\Gears\gears\myfile.obj')
+        bpy.ops.export_scene.obj(filepath=os.path.join(self.path, '{}.obj'.format(self.name)), check_existing =True,use_materials=False)
 
         return object_gear
 
 
 if __name__ == '__main__':
-
     gear = Gear3d(thickness=10, name="my_gear", path="C:/Users/Oleg/Dropbox/Gears/gears", location=[0, 0, 0], a=3, b=3,
                   alfa=20, m=1, n_teeth=18, shift=0)
-    gear.createMeshFromData()
