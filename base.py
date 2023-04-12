@@ -19,6 +19,7 @@ class CameraWindow(mglw.WindowConfig):
 
 
 
+
     def mouse_position_event(self, x: int, y: int, dx, dy):
         if self.camera_enabled:
             self.camera.rot_state(-dx, -dy)

@@ -5,6 +5,7 @@ import numpy as np
 
 # this is optional and allows you to call the functions without specifying the package name
 from gear_2d import Gear2d
+import json
 
 
 class Gear3d(Gear2d):
@@ -24,7 +25,7 @@ class Gear3d(Gear2d):
 
     def create_mesh(self):
         bpy.ops.object.delete()
-        print(bpy)
+        point_in_gear=len(self.gear)
         mesh_gear = bpy.data.meshes.new(self.name + 'Mesh')
         object_gear = bpy.data.objects.new(self.name, mesh_gear)
         object_gear.location = self.location
@@ -62,7 +63,8 @@ class Gear3d(Gear2d):
                                     "release_confirm": True, "use_accurate": False, "use_automerge_and_split": False})
         # bpy.ops.mesh.loopcut_slide(MESH_OT_loopcut={"number_cuts":10, "smoothness":0, "falloff":'INVERSE_SQUARE', "object_index":0, "edge_index":4692, "mesh_select_mode_init":(True, False, False)}, TRANSFORM_OT_edge_slide={"value":0, "single_side":False, "use_even":False, "flipped":False, "use_clamp":True, "mirror":True, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "correct_uv":True, "release_confirm":True, "use_accurate":False})
         # bpy.ops.view3d.snap_cursor_to_selected()
-        bpy.ops.mesh.primitive_circle_add(vertices=1620, radius=3, enter_editmode=False, align='WORLD',
+
+        bpy.ops.mesh.primitive_circle_add(vertices=point_in_gear, radius=3, enter_editmode=False, align='WORLD',
                                           location=(
                                           self.location[0], self.location[1], self.location[2] + self.thickness),
                                           scale=(1, 1, 1))
@@ -71,7 +73,7 @@ class Gear3d(Gear2d):
         bpy.ops.object.mode_set(mode='OBJECT')
 
         obj = bpy.context.active_object
-        for i in obj.data.vertices[1620:]:
+        for i in obj.data.vertices[point_in_gear:]:
             i.select = True
         # obj.data.vertices[0].select = True
         bpy.ops.object.mode_set(mode='EDIT')
@@ -79,7 +81,7 @@ class Gear3d(Gear2d):
 
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT')
-        for i in obj.data.vertices[3240:]:
+        for i in obj.data.vertices[point_in_gear*2:]:
             i.select = True
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.extrude_context_move(
@@ -99,15 +101,20 @@ class Gear3d(Gear2d):
                                     "texture_space": False, "remove_on_cancel": False, "view2d_edge_pan": False,
                                     "release_confirm": True, "use_accurate": False, "use_automerge_and_split": False})
         bpy.ops.object.mode_set(mode='OBJECT')
-        for i in obj.data.vertices[:1620]:
+        for i in obj.data.vertices[:point_in_gear]:
             i.select = True
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.bridge_edge_loops()
 
         bpy.ops.export_scene.obj(filepath=os.path.join(self.path, '{}.obj'.format(self.name)), check_existing =True,use_materials=False)
-
+        with open(os.path.join(self.path, '{}.json'.format(self.name)), 'w') as f:
+            json.dump(self.__dict__, f,cls=NumpyEncoder)
         return object_gear
-
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 if __name__ == '__main__':
     gear = Gear3d(thickness=10, name="my_gear", path="C:/Users/Oleg/Dropbox/Gears/gears", location=[0, 0, 0], a=3, b=3,

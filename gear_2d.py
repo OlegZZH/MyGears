@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 
 from transformation import rot_z
@@ -15,6 +16,8 @@ class Gear2d:
         :param alfa: кут зачеплення
         :return: контур одного зуба
         """
+        self.base_r = None
+        self.tooth_thickness = None
         self.edges = None
         self.arc_y = None
         self.arc_x = None
@@ -52,50 +55,45 @@ class Gear2d:
         self.create_edges()
 
     def calculate_one_tooth(self):
-        t = np.linspace(0, 2 * np.pi)
-        self.pitch_circle_x = self.pitch_r * np.cos(t)
-        self.pitch_circle_y = self.pitch_r * np.sin(t)
 
-        self.out_circle_x = self.out_r * np.cos(t)
-        self.out_circle_y = self.out_r * np.sin(t)
-
-        self.root_circle_x = self.root_r * np.cos(t)
-        self.root_circle_y = self.root_r * np.sin(t)
-
-        self.xt = np.array([-3, 3])
+        self.xt = np.array([-10, 10])
         self.yt = -np.tan(self.alfa) * self.xt + self.pitch_r
         self.yrt = self.xt / np.tan(self.alfa)
         self.xi = self.pitch_r / ((1 / np.tan(self.alfa)) + np.tan(self.alfa))
         self.yi = self.xi / np.tan(self.alfa)
-        base_r = np.sqrt(self.xi * self.xi + self.yi * self.yi)
-        self.base_circle_x = base_r * np.cos(t)
-        self.base_circle_y = base_r * np.sin(t)
-        tip_r = (self.pitch_d + 2 * self.m * (1 + self.shift)) / 2
-        l = np.sqrt(tip_r * tip_r / base_r / base_r - 1)
-        tooth = np.array(self.circle_involute(base_r, l))
+        self.base_r = np.sqrt(self.xi * self.xi + self.yi * self.yi)
+        fTipDiameter = self.pitch_d + 2 * self.m * (1 + self.shift)
+        fTipRadius = fTipDiameter / 2
+        if self.shift!=0:
+            self.out_d=fTipDiameter
+            self.out_r= fTipRadius
 
-        fTipPressureAngle = np.rad2deg(np.arccos((base_r * 2) / (tip_r * 2)))
+        l =    np.sqrt(self.out_r * self.out_r / self.base_r / self.base_r - 1)
+        tooth = np.array(self.circle_involute(self.base_r, l))
+
+        fTipPressureAngle = np.rad2deg(np.arccos((self.base_r * 2)/ self.out_d))
         fInvAlpha = np.tan(self.alfa) - self.alfa
-        fInvAlphaA = np.tan(fTipPressureAngle * np.pi / 180) - fTipPressureAngle * np.pi / 180
+        fInvAlphaA = np.tan(np.deg2rad(fTipPressureAngle)) - np.deg2rad(fTipPressureAngle )
         fTopThickness = np.pi / (2 * self.n_teeth) + (
                     2 * self.shift * np.tan(self.alfa)) / self.n_teeth + fInvAlpha - fInvAlphaA
 
-        x1 = base_r
+        x1 = self.base_r
         y1 = 0
-        x2 = base_r * (np.cos(l) + l * np.sin(l))
-        y2 = base_r * (np.sin(l) - l * np.cos(l))
+        x2 = tooth[0][-1]
+        y2 = tooth[1][-1]
         d = np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-        cox = (base_r ** 2 + tip_r ** 2 - d ** 2) / 2 / base_r / tip_r
-        tooth_thickness = 2 * np.rad2deg(fTopThickness) + 2 * np.rad2deg(np.arccos(cox))
-        rot = rot_z(np.c_[tooth[0], -tooth[1]], -tooth_thickness)
+        cox = (self.base_r ** 2 + self.out_r ** 2 - d ** 2) / 2 / self.base_r / self.out_r
+        self.tooth_thickness = 2 * np.rad2deg(fTopThickness) + 2 * np.arccos(cox)*180/np.pi
+        rot = rot_z(np.c_[tooth[0], -tooth[1]], -self.tooth_thickness)
         tooth = np.c_[tooth, np.flip(rot.T, 1)]
         second_tooth = rot_z(tooth.T, 360 / self.n_teeth).T
         arc_r = np.sqrt((tooth[0, 0] - second_tooth[0, -1]) ** 2 + (tooth[1, 0] - second_tooth[1, -1]) ** 2) / 2
         arc_center = [(tooth[0, 0] + second_tooth[0, -1]) / 2, (tooth[1, 0] + second_tooth[1, -1]) / 2]
-        t2 = np.linspace(1.5 * np.pi - np.deg2rad(tooth_thickness / 2), np.pi / 2)
+        t2 = np.linspace(1.5 * np.pi - np.deg2rad(self.tooth_thickness / 2), np.pi / 2)
         self.arc_x = arc_r * np.cos(t2) + arc_center[0]
         self.arc_y = arc_r * np.sin(t2) + arc_center[1]
         self.tooth = np.flip(np.concatenate((np.array([self.arc_x, self.arc_y]), tooth), axis=1), 0)
+
 
     @staticmethod
     def circle_involute(r, l):
@@ -112,28 +110,63 @@ class Gear2d:
         self.edges = np.roll(np.repeat(np.array([i for i in range(len(self.gear))]), 2), -1).reshape(-1, 2)
 
     def show_gear(self):
-        fig, ax = plt.subplots()
-        ax.plot(self.pitch_circle_x, self.pitch_circle_y, color="r")
-        ax.plot(self.out_circle_x, self.out_circle_y, color="g")
-        ax.plot(self.root_circle_x, self.root_circle_y, color="c")
-        ax.plot(self.xt, self.yt)
-        ax.plot(self.xt, self.yrt)
-        ax.plot(self.xi, self.yi, "o")
+        t = np.linspace(0, 2 * np.pi)
+        self.pitch_circle_x = self.pitch_r * np.cos(t)
+        self.pitch_circle_y = self.pitch_r * np.sin(t)
+
+        self.out_circle_x = self.out_r * np.cos(t)
+        self.out_circle_y = self.out_r * np.sin(t)
+
+        self.root_circle_x = self.root_r * np.cos(t)
+        self.root_circle_y = self.root_r * np.sin(t)
+
+        self.base_circle_x = self.base_r * np.cos(t)
+        self.base_circle_y = self.base_r * np.sin(t)
+
+        # ax.plot(self.pitch_circle_x, self.pitch_circle_y, color="r")
+        # ax.plot(self.out_circle_x, self.out_circle_y, color="g")
+        # ax.plot(self.root_circle_x, self.root_circle_y, color="c")
+        # ax.plot(self.out_circle_x, self.out_circle_y, color="r")
+
         # ax.plot(*self.tooth)
         # ax.plot(self.arc_x,self.arc_y)
 
-        ax.plot(self.base_circle_x, self.base_circle_y, color="b")
-        ax.plot(self.gear[:, 0], self.gear[:, 1])
-        plt.gca().set_aspect("equal")
-        plt.show()
+        ax.plot(self.gear[:, 0], self.gear[:, 1],color="w")
+
 
 
 if __name__ == '__main__':
     a = 3
-    b = 3
+    b = 2
     alfa = 20
     m = 1
-    n_teeth = 18
+    n_teeth = 10
     shift = 0
-    gear = Gear_2d(a, b, alfa, m, n_teeth, shift)
+    gear = Gear2d(a, b, alfa, m, 18, shift)
+    gear2 = Gear2d(a, b, alfa, m,21, shift)
+
+    matplotlib.rc('axes', edgecolor='#0071b8')
+    fig,ax=plt.subplots()
+    fig.patch.set_facecolor("#0071b8")
+    ax.set_position([0., 0., 1., 1.])
+    ax.set_facecolor("#0071b8")
+    ax.axes.xaxis.set_visible(False)
+    ax.axes.yaxis.set_visible(False)
+
+    # ax.plot(gear.xt, gear.yt, color="tab:orange",linewidth=2)
+    # ax.plot([-10,10], [9,9], color="w",linewidth=1)
+    # # ax.plot(self.xt, self.yrt)
+    # ax.plot(0.12, 9, "o",color="tab:orange",markersize=8, markeredgecolor="w")
+
     gear.show_gear()
+    angle = 180 / gear2.n_teeth  - gear2.tooth_thickness
+    angle = 360 / gear2.n_teeth  - gear2.tooth_thickness
+    gear2.gear=rot_z(gear2.gear,angle)
+    gear2.gear[:, 1]+=gear2.pitch_r+gear.pitch_r
+
+    gear2.show_gear()
+    # ax.set_xlim(-10, 10)
+    # ax.set_ylim(5, 15)
+    plt.gca().set_aspect("equal")
+    # plt.savefig('resources/texture/angle.png', bbox_inches='tight',dpi=90)
+    plt.show()
