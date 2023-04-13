@@ -9,7 +9,7 @@ import json
 
 
 class Gear3d(Gear2d):
-    def __init__(self, thickness, name, path, location, **kwargs):
+    def __init__(self, thickness, name, path, location,shaft, **kwargs):
         """
         :param thickness: товщіна шестерні
         :param name: ім'я файлу
@@ -21,6 +21,7 @@ class Gear3d(Gear2d):
         self.name = name
         self.path = path
         self.location = location
+        self.shaft=shaft
         self.create_mesh()
 
     def create_mesh(self):
@@ -64,7 +65,7 @@ class Gear3d(Gear2d):
         # bpy.ops.mesh.loopcut_slide(MESH_OT_loopcut={"number_cuts":10, "smoothness":0, "falloff":'INVERSE_SQUARE', "object_index":0, "edge_index":4692, "mesh_select_mode_init":(True, False, False)}, TRANSFORM_OT_edge_slide={"value":0, "single_side":False, "use_even":False, "flipped":False, "use_clamp":True, "mirror":True, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "correct_uv":True, "release_confirm":True, "use_accurate":False})
         # bpy.ops.view3d.snap_cursor_to_selected()
 
-        bpy.ops.mesh.primitive_circle_add(vertices=point_in_gear, radius=3, enter_editmode=False, align='WORLD',
+        bpy.ops.mesh.primitive_circle_add(vertices=point_in_gear, radius=self.shaft/2, enter_editmode=False, align='WORLD',
                                           location=(
                                           self.location[0], self.location[1], self.location[2] + self.thickness),
                                           scale=(1, 1, 1))

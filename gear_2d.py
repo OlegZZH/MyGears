@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import matplotlib
 import numpy as np
 
 from transformation import rot_z
@@ -89,7 +88,7 @@ class Gear2d:
         second_tooth = rot_z(tooth.T, 360 / self.n_teeth).T
         arc_r = np.sqrt((tooth[0, 0] - second_tooth[0, -1]) ** 2 + (tooth[1, 0] - second_tooth[1, -1]) ** 2) / 2
         arc_center = [(tooth[0, 0] + second_tooth[0, -1]) / 2, (tooth[1, 0] + second_tooth[1, -1]) / 2]
-        t2 = np.linspace(1.5 * np.pi - np.deg2rad(self.tooth_thickness / 2), np.pi / 2)
+        t2 = np.linspace(1.5 * np.pi - np.deg2rad(self.tooth_thickness / 2), np.pi / 2,20)
         self.arc_x = arc_r * np.cos(t2) + arc_center[0]
         self.arc_y = arc_r * np.sin(t2) + arc_center[1]
         self.tooth = np.flip(np.concatenate((np.array([self.arc_x, self.arc_y]), tooth), axis=1), 0)
@@ -126,30 +125,30 @@ class Gear2d:
         # ax.plot(self.pitch_circle_x, self.pitch_circle_y, color="r")
         # ax.plot(self.out_circle_x, self.out_circle_y, color="g")
         # ax.plot(self.root_circle_x, self.root_circle_y, color="c")
-        # ax.plot(self.out_circle_x, self.out_circle_y, color="r")
+        ax.plot(self.base_circle_x, self.base_circle_y, color="r")
 
         # ax.plot(*self.tooth)
         # ax.plot(self.arc_x,self.arc_y)
 
-        ax.plot(self.gear[:, 0], self.gear[:, 1],color="w")
+        ax.plot(self.gear[:, 0], self.gear[:, 1])
 
 
 
 if __name__ == '__main__':
-    a = 3
+    a = 2.5
     b = 2
     alfa = 20
     m = 1
     n_teeth = 10
     shift = 0
-    gear = Gear2d(a, b, alfa, m, 18, shift)
-    gear2 = Gear2d(a, b, alfa, m,21, shift)
+    gear = Gear2d(a, b, alfa, m, 10, 0.1)
+    gear2 = Gear2d(a, b, alfa, m,13, shift)
 
-    matplotlib.rc('axes', edgecolor='#0071b8')
+    # matplotlib.rc('axes', edgecolor='#0071b8')
     fig,ax=plt.subplots()
-    fig.patch.set_facecolor("#0071b8")
+    # fig.patch.set_facecolor("#0071b8")
     ax.set_position([0., 0., 1., 1.])
-    ax.set_facecolor("#0071b8")
+    # ax.set_facecolor("#0071b8")
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
 
@@ -159,10 +158,14 @@ if __name__ == '__main__':
     # ax.plot(0.12, 9, "o",color="tab:orange",markersize=8, markeredgecolor="w")
 
     gear.show_gear()
-    angle = 180 / gear2.n_teeth  - gear2.tooth_thickness
-    angle = 360 / gear2.n_teeth  - gear2.tooth_thickness
+    if gear2.n_teeth % 2 == 0:
+        angle = 180 / (gear2.n_teeth)  - gear2.tooth_thickness
+    else:
+        angle = 360 / gear2.n_teeth  - gear2.tooth_thickness
     gear2.gear=rot_z(gear2.gear,angle)
-    gear2.gear[:, 1]+=gear2.pitch_r+gear.pitch_r
+
+    gear2.gear[:, 1]+=gear.pitch_r+gear2.pitch_r
+
 
     gear2.show_gear()
     # ax.set_xlim(-10, 10)

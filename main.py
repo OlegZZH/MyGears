@@ -6,6 +6,7 @@ from pathlib import Path
 import imgui
 import moderngl
 import numpy as np
+import pyrr
 from PIL import ImageColor
 from pyrr import Matrix44
 
@@ -33,40 +34,50 @@ def terrain(size):
 
 
 def axis():
-    buffer = np.array([[0, 10, 0], [0, -10, 0], [-10, 0, 0], [10, 0, 0], [0, 0, 10], [0, 0, -10]])
+    buffer = np.array([[0, 30, 0], [0, -30, 0], [-30, 0, 0], [30, 0, 0], [0, 0, 30], [0, 0, -30]])
     return buffer
 
 
 class GearGenerator(CameraWindow):
     aspect_ratio = 16 / 9
     resource_dir = (Path(__file__) / '../../Gears/resources').resolve()
-    title = "Cube Model"
+    title = "Gear Generator"
+
     fullscreen = True
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        self.speed = 1
+        self.clearance = 0
+        self.transmission = False
         self.remove_gear = None
         self.add_gear = None
-        self.enable_profile = True
         self.s = None
         self.create_gear = False
         self.load = False
         self.create_window_is_open = False
         self.clicked_load = False
+        self.perspective_projection = False
         self.selected = np.full(10, 0)
 
         self.wnd.mouse_exclusivity = True
 
-        self.gear_collation = []
         self.scene = Scene()
         # self.scene.add_obj(self.load_scene("scenes\\myfile.obj"),Matrix44.from_translation((0, 0, 0)).astype('f4'))
 
         self.camera.projection.update(near=0.1, far=1000.0)
         self.camera.velocity = 10.0
         self.camera.mouse_sensitivity = 0.3
+
+        self.camera_enabled = False
+        self.wnd.mouse_exclusivity = self.camera_enabled
+        self.wnd.cursor = not self.camera_enabled
+
         self.gear_param = {"thickness": 3, "name": "Gear_1",
                            "path": "C:\\Users\\Oleg\\Dropbox\\Gears\\resources\\scenes",
-                           "location": [0, 0, 0], "a": 2.5, "b": 2, "alfa": 20, "m": 1, "n_teeth": 10, "shift": 0}
+                           "location": [0, 0, 0], "a": 2.5, "b": 2, "alfa": 20, "m": 1, "n_teeth": 12, "shift": 0,
+                           "shaft": 6}
         self.prog = self.load_program(vertex_shader=r"programs\vertex_shader.glsl",
                                       fragment_shader=r"programs\fragment_shader.glsl")
         self.P_M = self.prog["prog"]
@@ -81,7 +92,7 @@ class GearGenerator(CameraWindow):
         self.light_diffuse = self.prog["light.diffuse"]
         self.light_specular = self.prog["light.specular"]
 
-        self.previwe = {n: self.load_preview_texture(n) for n in ["a", "b", "angle"]}
+        self.preview = {n: self.load_preview_texture(n) for n in ["a", "b", "angle"]}
 
         vertices, ind = terrain(30)
         vertices[:, :, :] -= 0.5
@@ -95,8 +106,8 @@ class GearGenerator(CameraWindow):
         self.vao_axis = self.ctx.vertex_array(self.prog, self.vbo_axis, 'in_vert')
 
         self.lookat = Matrix44.look_at(
-            (15, 0, 1.0),  # eye
-            (0, 0, 1.0),  # target
+            (0.01, 0, 10.0),  # eye
+            (0, 0, 0),  # target
             (.0, .0, 1.0),  # up
         )
         self.L_M.write(self.lookat.astype('f4'))
@@ -111,6 +122,7 @@ class GearGenerator(CameraWindow):
             "Semi-Coder-Regular.ttf", 30,
         )
         self.imgui.refresh_font_texture()
+        self.projection_matrix = pyrr.matrix44.create_orthogonal_projection(-16, 16, -9, 9, -2000, 2000, dtype='f4')
 
     def key_event(self, key, action, modifiers):
         keys = self.wnd.keys
@@ -130,6 +142,15 @@ class GearGenerator(CameraWindow):
                 self.wnd.close()
             if modifiers.ctrl == True and key == keys.N:
                 self.create_window_is_open = True
+            if modifiers.ctrl == True and key == keys.O:
+                self.clicked_load = True
+            if key == keys.P:
+                self.perspective_projection = not self.perspective_projection
+                if self.perspective_projection:
+                    self.projection_matrix = self.camera.projection.matrix.astype('f4')
+                else:
+                    self.projection_matrix = pyrr.matrix44.create_orthogonal_projection(-16, 16, -9, 9, -2000, 2000,
+                                                                                        dtype='f4')
 
     def load_preview_texture(self, name):
         texture = self.load_texture_2d(f'texture/{name}.png', flip_y=False)
@@ -141,7 +162,7 @@ class GearGenerator(CameraWindow):
         self.ctx.clear(*face_color)
         self.ctx.enable_only(moderngl.DEPTH_TEST)
 
-        self.P_M.write(self.camera.projection.matrix.astype('f4'))
+        self.P_M.write(self.projection_matrix)
         self.C_M.write(self.camera.matrix.astype('f4'))
         self.T_M.write(Matrix44.from_translation((0, 0, 0)).astype('f4'))
         self.viewPos.write(self.camera.position.astype('f4'))
@@ -151,27 +172,40 @@ class GearGenerator(CameraWindow):
         self.vao_grid.render(moderngl.TRIANGLE_STRIP)
         self.switcher.write(axis_color.astype('f4'))
         self.vao_axis.render(moderngl.LINES)
-
+        time *= self.speed
         self.ctx.wireframe = False
         for n, obj in enumerate(self.scene.scene):
-            if n > 0:
-                speed = (self.scene.scene[0].gear_info["pitch_d"] / obj.gear_info["pitch_d"])
-                if obj.gear_info["n_teeth"] % 2 == 0:
-                    obj.angle = 180 / obj.gear_info["n_teeth"] - obj.gear_info["tooth_thickness"] - self.scene.scene[
-                        n - 1].angle
-                else:
-                    obj.angle = 360 / obj.gear_info["n_teeth"] - obj.gear_info["tooth_thickness"] - self.scene.scene[
-                        n - 1].angle
-                if n % 2 != 0:
-                    speed *= -1
+            if self.scene.scene[0].gear_info["n_teeth"] % 2 == 0:
+                obj.angle = 180 / obj.gear_info["n_teeth"] - obj.gear_info["tooth_thickness"]
             else:
-                speed = 1
+                obj.angle = 360 / obj.gear_info["n_teeth"] - obj.gear_info["tooth_thickness"]
+            speed = -(self.scene.scene[0].gear_info["pitch_d"] / obj.gear_info["pitch_d"])
 
-            rotation = Matrix44.from_x_rotation(np.pi * 1.5, dtype="f4") @ Matrix44.from_z_rotation(time * speed,
-                                                                                                    dtype="f4") @ Matrix44.from_z_rotation(
-                np.deg2rad(obj.angle), dtype="f4") @ obj.model_matrix
+            if self.transmission:
+                if n == 0:
+                    speed = -1
+                    rotation = Matrix44.from_x_rotation(np.deg2rad(-90), dtype="f4") @ Matrix44.from_z_rotation(
+                        speed * time, dtype="f4")
+                else:
+                    if n % 2 != 0:
+                        speed *= -1
+                    rotation = Matrix44.from_x_rotation(np.deg2rad(-90), dtype="f4") @ Matrix44.from_z_rotation(
+                        speed * time, dtype="f4") @ Matrix44.from_z_rotation(np.deg2rad(obj.angle),
+                                                                             dtype="f4") @ obj.model_matrix
+            else:
+                if n == 0:
+                    speed = 0
+                    rotation = Matrix44.from_x_rotation(np.deg2rad(-90), dtype="f4")
+                else:
+
+                    rotation = Matrix44.from_x_rotation(np.deg2rad(-90), dtype="f4") @ Matrix44.from_z_rotation(
+                        time * speed, dtype="f4") @ Matrix44.from_z_rotation(np.deg2rad(obj.angle),
+                                                                             dtype="f4") @ Matrix44.from_translation(
+                        (0, -self.clearance, 0), dtype="f4") @ obj.model_matrix @ Matrix44.from_z_rotation(
+                        -time, dtype="f4")
+
             obj.gear_3d_obj.draw(
-                projection_matrix=self.camera.projection.matrix,
+                projection_matrix=self.projection_matrix,
                 camera_matrix=self.camera.matrix * self.lookat * rotation,
                 time=time,
 
@@ -179,16 +213,18 @@ class GearGenerator(CameraWindow):
 
         self.render_ui()
 
+
+
     def render_ui(self):
         imgui.new_frame()
 
-        imgui.push_style_color(imgui.COLOR_WINDOW_BACKGROUND, *face_color*0.7)
+        imgui.push_style_color(imgui.COLOR_WINDOW_BACKGROUND, *face_color * 0.7)
         imgui.push_style_var(imgui.STYLE_ALPHA, 0.9)
 
         imgui.push_style_color(imgui.COLOR_TEXT, *grid_color)
-        imgui.push_style_color(imgui.COLOR_FRAME_BACKGROUND, *face_color*0.7)
-        imgui.push_style_color(imgui.COLOR_TITLE_BACKGROUND, *face_color*0.7)
-        imgui.push_style_color(imgui.COLOR_TITLE_BACKGROUND_ACTIVE, *face_color*0.7)
+        imgui.push_style_color(imgui.COLOR_FRAME_BACKGROUND, *face_color * 0.7)
+        imgui.push_style_color(imgui.COLOR_TITLE_BACKGROUND, *face_color * 0.7)
+        imgui.push_style_color(imgui.COLOR_TITLE_BACKGROUND_ACTIVE, *face_color * 0.7)
         imgui.push_style_var(imgui.STYLE_GRAB_ROUNDING, 10.0)
         imgui.push_style_var(imgui.STYLE_FRAME_ROUNDING, 10.0)
         imgui.push_font(self.new_font)
@@ -199,16 +235,16 @@ class GearGenerator(CameraWindow):
                 clicked_quit, selected_quit = imgui.menu_item("Quit", 'Ctrl+Q', False, True)
                 if clicked_quit:
                     exit(1)
-                self.create_window_is_open, selected_new = imgui.menu_item('Create new gear', 'Cmd+N',
+                self.create_window_is_open, selected_new = imgui.menu_item('Create new gear', 'Ctrl+N',
                                                                            self.create_window_is_open, True)
-                self.clicked_load, selected_load = imgui.menu_item('Load file', 'Cmd+O', self.clicked_load, True)
+                self.clicked_load, selected_load = imgui.menu_item('Load file', 'Ctrl+O', self.clicked_load, True)
 
                 imgui.end_menu()
             imgui.end_main_menu_bar()
         if self.create_window_is_open:
             self.new_gear()
         if self.clicked_load:
-            self.load_file_window()
+            self.load_file()
 
         imgui.begin("Gear Generator")
         for obj in self.scene.scene:
@@ -225,10 +261,28 @@ class GearGenerator(CameraWindow):
                 imgui.text("Root Diameter - {}".format(obj.gear_info["root_d"]))
                 imgui.text("Base Diameter - {}".format(obj.gear_info["base_r"] * 2))
                 imgui.text("Tooth thickness - {}".format(obj.gear_info["tooth_thickness"]))
+                if self.scene.scene.index(obj) == 0:
+                    speed = 1
+                else:
+                    speed = (self.scene.scene[0].gear_info["pitch_d"] / obj.gear_info["pitch_d"])
+                imgui.text("Speed - {}".format(speed))
                 imgui.tree_pop()
-        self.add_gear = imgui.button("+ Add gear")
+        if len(self.scene.scene) < 2:
+            self.add_gear = imgui.button("+ Add gear")
+
+        if self.scene.scene:
+            if len(self.scene.scene) < 2:
+                imgui.same_line()
+            self.remove_gear = imgui.button("- Remove gear")
+            _,self.speed=imgui.input_int("Speed",self.speed)
+
+        if len(self.scene.scene) == 2:
+            _, self.clearance = imgui.slider_float("Clearance", self.clearance, 0, 0.5)
+        if imgui.button("First transmission"):
+            self.transmission = True
         imgui.same_line()
-        self.remove_gear = imgui.button("- Remove gear")
+        if imgui.button("Second transmission"):
+            self.transmission = False
         if self.add_gear:
             imgui.open_popup("Choose how to add")
         imgui.same_line()
@@ -236,8 +290,9 @@ class GearGenerator(CameraWindow):
             if imgui.selectable("Create new gear")[1]: self.create_window_is_open = True
             if imgui.selectable("Load file")[1]: self.clicked_load = True
             imgui.end_popup()
-        if self.remove_gear and self.scene.scene:
+        if self.remove_gear:
             self.scene.remove()
+            self.remove_gear = False
         imgui.end()
 
         imgui.pop_font()
@@ -254,7 +309,7 @@ class GearGenerator(CameraWindow):
         self.imgui.render(imgui.get_draw_data())
 
     def new_gear(self):
-        _, self.create_window_is_open = imgui.begin("Create new gear_3d_obj", True)
+        _, self.create_window_is_open = imgui.begin("Create new gear", True)
         _, self.gear_param["name"] = imgui.input_text("Name", f"Gear_{len(self.scene.scene)}", 30)
         _, self.gear_param["shift"] = imgui.slider_float("Profile shift", self.gear_param["shift"], 0, 1)
         if imgui.is_item_hovered():
@@ -265,19 +320,19 @@ class GearGenerator(CameraWindow):
         if imgui.is_item_hovered():
             imgui.begin_tooltip()
             imgui.text("Tooth stem height")
-            imgui.image(self.previwe["a"].glo, self.previwe["a"].width, self.previwe["a"].height)
+            imgui.image(self.preview["a"].glo, self.preview["a"].width, self.preview["a"].height)
             imgui.end_tooltip()
         _, self.gear_param["b"] = imgui.input_float("b", self.gear_param["b"], 0.1)
         if imgui.is_item_hovered():
             imgui.begin_tooltip()
             imgui.text("Tooth head height")
-            imgui.image(self.previwe["b"].glo, self.previwe["b"].width, self.previwe["b"].height)
+            imgui.image(self.preview["b"].glo, self.preview["b"].width, self.preview["b"].height)
             imgui.end_tooltip()
         _, self.gear_param["alfa"] = imgui.input_float("alfa", self.gear_param["alfa"], 0.1)
         if imgui.is_item_hovered():
             imgui.begin_tooltip()
             imgui.text("Engagement angle")
-            imgui.image(self.previwe["angle"].glo, self.previwe["angle"].width, self.previwe["angle"].height)
+            imgui.image(self.preview["angle"].glo, self.preview["angle"].width, self.preview["angle"].height)
             imgui.end_tooltip()
         _, self.gear_param["m"] = imgui.input_float('m', self.gear_param["m"], 0.1)
         if imgui.is_item_hovered():
@@ -289,27 +344,33 @@ class GearGenerator(CameraWindow):
             imgui.begin_tooltip()
             imgui.text("Number of teeth")
             imgui.end_tooltip()
-        _, self.gear_param["thickness"] = imgui.input_int('thickness', self.gear_param["thickness"], 0.1)
+        _, self.gear_param["thickness"] = imgui.input_float('thickness', self.gear_param["thickness"], 0.1)
         if imgui.is_item_hovered():
             imgui.begin_tooltip()
             imgui.text("Gear thickness")
             imgui.end_tooltip()
+        _, self.gear_param["shaft"] = imgui.input_float('shaft', self.gear_param["shaft"], 0.1)
+        if imgui.is_item_hovered():
+            imgui.begin_tooltip()
+            imgui.text("Shaft bore diameter")
+            imgui.end_tooltip()
         _, self.gear_param["path"] = imgui.input_text("Path", self.gear_param["path"], 60)
-        self.create_gear = imgui.button("Create", 100, 40)
+        self.create_gear = imgui.button("Create")
         imgui.end()
 
         if self.create_gear:
             g = Gear3d(self.gear_param['thickness'], self.gear_param['name'], self.gear_param['path'],
-                       self.gear_param['location'], a=self.gear_param['a'], b=self.gear_param['b'],
+                       self.gear_param['location'], self.gear_param['shaft'], a=self.gear_param['a'],
+                       b=self.gear_param['b'],
                        alfa=self.gear_param['alfa'], m=self.gear_param['m'], n_teeth=self.gear_param['n_teeth'],
                        shift=self.gear_param['shift'])
             self.add2scene(os.path.join(self.gear_param['path'], '{}.obj'.format(self.gear_param['name'])), g.__dict__)
 
-    def load_file_window(self):
+    def load_file(self):
         _, self.clicked_load = imgui.begin("Load file", True)
         _, self.gear_param["path"] = imgui.input_text("Path", self.gear_param["path"], 60)
         imgui.same_line()
-        self.load = imgui.button("Change Directory", 220, 40)
+        self.load = imgui.button("Change Directory")
         files = glob.glob(self.gear_param["path"] + "\*.obj")
         for n, i in enumerate(files):
             _, self.selected[n] = imgui.selectable(f"{n}. {os.path.basename(i)}", self.selected[n])
@@ -318,7 +379,7 @@ class GearGenerator(CameraWindow):
                 self.selected[n] = True
                 self.s = i
 
-        self.load = imgui.button("Load", 100, 40)
+        self.load = imgui.button("Load")
         if self.load:
             name = os.path.splitext(os.path.basename(self.s))[0]
             with open(os.path.join(self.gear_param["path"], f'{name}.json'), 'r') as f:
@@ -331,10 +392,10 @@ class GearGenerator(CameraWindow):
             model_matrix = Matrix44.from_translation((0, 0, 0), dtype='f4')
         else:
             shift = sum(i.gear_info['pitch_d'] for i in self.scene.scene[1:]) + self.scene.scene[0].gear_info['pitch_r']
-            model_matrix = Matrix44.from_translation((0, shift + gear_dict['pitch_r'], 0), dtype='f4')
+            model_matrix = Matrix44.from_translation((0, -(shift + gear_dict['pitch_r']), 0), dtype='f4')
         obj = self.load_scene(gear_path)
-
-        self.scene.add_obj(obj, model_matrix, gear_dict, 0)
+        if len(self.scene.scene) < 2:
+            self.scene.add_obj(obj, model_matrix, gear_dict, 0)
 
 
 class Object:
@@ -353,7 +414,7 @@ class Scene:
         self.scene.append(Object(gear, model, gear_info, angle))
 
     def remove(self):
-        self.scene.pop()
+        self.scene = self.scene[:-1]
 
 
 if __name__ == '__main__':
